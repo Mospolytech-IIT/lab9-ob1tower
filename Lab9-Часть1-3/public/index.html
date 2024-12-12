@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+	<meta charset="UTF-8">
+	<title>Управление пользователями и постами</title>
+	<style>
+		td {
+			padding: 5px;
+		}
+
+		button {
+			margin: 5px;
+		}
+	</style>
+</head>
+
+<body>
+	<h2>Создание нового пользователя</h2>
+	<div>
+		<input type="hidden" id="userId" />
+		<p>Имя:<br /><input id="userName" /></p>
+		<p>Email:<br /><input id="userEmail" /></p>
+		<p>Пароль:<br /><input type="password" id="userPassword" /></p>
+		<p><button id="saveUserBtn">Сохранить</button> <button id="resetUserBtn">Сбросить</button></p>
+	</div>
+
+	<h2>Создание нового поста</h2>
+	<div>
+		<input type="hidden" id="postId" />
+		<p>Заголовок:<br /><input id="postTitle" /></p>
+		<p>Контент:<br /><input id="postContent" /></p>
+		<p>Пользователь ID:<br /><input id="postUserId" /></p>
+		<p><button id="savePostBtn">Сохранить</button> <button id="resetPostBtn">Сбросить</button></p>
+	</div>
+
+	<h2>Список пользователей</h2>
+	<table>
+		<thead>
+			<tr>
+				<th>Имя</th>
+				<th>Email</th>
+				<th>Пароль</th>
+				<th>Действия</th>
+			</tr>
+		</thead>
+		<tbody id="usersTableBody"></tbody>
+	</table>
+
+	<h2>Список постов</h2>
+	<table>
+		<thead>
+			<tr>
+				<th>Заголовок</th>
+				<th>Контент</th>
+				<th>Пользователь ID</th>
+				<th>Действия</th>
+			</tr>
+		</thead>
+		<tbody id="postsTableBody"></tbody>
+	</table>
+
+	<script>
+		// Получение всех пользователей
+		async function getUsers() {
+			const response = await fetch("/users");
+			const users = await response.json();
+			const rows = document.getElementById("usersTableBody");
+			rows.innerHTML = "";
+			users.forEach(user => rows.appendChild(createUserRow(user)));
+		}
+
+		// Получение всех постов
+		async function getPosts() {
+			const response = await fetch("/posts");
+			const posts = await response.json();
+			const rows = document.getElementById("postsTableBody");
+			rows.innerHTML = "";
+			posts.forEach(post => rows.appendChild(createPostRow(post)));
+		}
+
+		// Создание строки для пользователя в таблице
+		function createUserRow(user) {
+			const tr = document.createElement("tr");
+			tr.setAttribute("data-rowid", user.id);
+			tr.innerHTML = `
+                <td>${user.username}</td>
+                <td>${user.email}</td>
+                <td>${user.password}</td>
+                <td>
+                    <button onclick="editUser(${user.id})">Редактировать</button>
+                    <button onclick="deleteUser(${user.id})">Удалить</button>
+                </td>
+            `;
+			return tr;
+		}
+
+		// Создание строки для поста в таблице с отображением User ID
+		function createPostRow(post) {
+			const tr = document.createElement("tr");
+			tr.setAttribute("data-rowid", post.id);
+			tr.innerHTML = `
+                <td>${post.title}</td>
+                <td>${post.content}</td>
+                <td>${post.user_id}</td>
+                <td>
+                    <button onclick="editPost(${post.id})">Редактировать</button>
+                    <button onclick="deletePost(${post.id})">Удалить</button>
+                </td>
+            `;
+			return tr;
+		}
+
+		// Добавление нового пользователя
+		async function createUser(username, email, password) {
+			const response = await fetch("/users", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ username, email, password })
+			});
+			if (response.ok) {
+				const user = await response.json();
+				document.getElementById("usersTableBody").appendChild(createUserRow(user));
+			}
+		}
+
+		// Функция для обновления данных пользователя
+		async function editUserRequest(userId, username, email, password) {
+			const response = await fetch(`/users/${userId}`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ username, email, password })
+			});
+			if (response.ok) {
+				const updatedUser = await response.json();
+				const row = document.querySelector(`tr[data-rowid='${userId}']`);
+				row.innerHTML = `
+                    <td>${updatedUser.username}</td>
+                    <td>${updatedUser.email}</td>
+                    <td>${updatedUser.password}</td>
+                    <td>
+                        <button onclick="editUser(${updatedUser.id})">Редактировать</button>
+                        <button onclick="deleteUser(${updatedUser.id})">Удалить</button>
+                    </td>
+                `;
+			} else {
+				alert("Ошибка при сохранении пользователя");
+			}
+		}
+
+		// Редактирование пользователя
+		async function editUser(userId) {
+			const user = await fetch(`/users/${userId}`).then(res => res.json());
+			document.getElementById("userId").value = user.id;
+			document.getElementById("userName").value = user.username;
+			document.getElementById("userEmail").value = user.email;
+			document.getElementById("userPassword").value = user.password;
+		}
+
+		// Удаление пользователя
+		async function deleteUser(userId) {
+			const response = await fetch(`/users/${userId}`, { method: "DELETE" });
+			if (response.ok) {
+				document.querySelector(`tr[data-rowid='${userId}']`).remove();
+			}
+		}
+
+		// Добавление нового поста
+		async function createPost(title, content, userId) {
+			const response = await fetch("/posts", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ title, content, user_id: userId })
+			});
+			if (response.ok) {
+				const post = await response.json();
+				document.getElementById("postsTableBody").appendChild(createPostRow(post));
+			}
+		}
+
+		// Функция для обновления данных поста
+		async function editPostRequest(postId, title, content, userId) {
+			const response = await fetch(`/posts/${postId}`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ title, content, user_id: userId })
+			});
+			if (response.ok) {
+				const updatedPost = await response.json();
+				const row = document.querySelector(`tr[data-rowid='${postId}']`);
+				row.innerHTML = `
+                    <td>${updatedPost.title}</td>
+                    <td>${updatedPost.content}</td>
+                    <td>${updatedPost.user_id}</td>
+                    <td>
+                        <button onclick="editPost(${updatedPost.id})">Редактировать</button>
+                        <button onclick="deletePost(${updatedPost.id})">Удалить</button>
+                    </td>
+                `;
+			} else {
+				alert("Ошибка при сохранении поста");
+			}
+		}
+
+		// Редактирование поста
+		async function editPost(postId) {
+			const post = await fetch(`/posts/${postId}`).then(res => res.json());
+			document.getElementById("postId").value = post.id;
+			document.getElementById("postTitle").value = post.title;
+			document.getElementById("postContent").value = post.content;
+			document.getElementById("postUserId").value = post.user_id;
+		}
+
+		// Удаление поста
+		async function deletePost(postId) {
+			const response = await fetch(`/posts/${postId}`, { method: "DELETE" });
+			if (response.ok) {
+				document.querySelector(`tr[data-rowid='${postId}']`).remove();
+			}
+		}
+
+		// Обработчики для кнопок сохранения и сброса формы
+		document.getElementById("saveUserBtn").addEventListener("click", async () => {
+			const username = document.getElementById("userName").value;
+			const email = document.getElementById("userEmail").value;
+			const password = document.getElementById("userPassword").value;
+			const userId = document.getElementById("userId").value;
+			if (userId) {
+				await editUserRequest(userId, username, email, password);
+			} else {
+				await createUser(username, email, password);
+			}
+			resetUserForm();
+		});
+
+		document.getElementById("savePostBtn").addEventListener("click", async () => {
+			const title = document.getElementById("postTitle").value;
+			const content = document.getElementById("postContent").value;
+			const userId = document.getElementById("postUserId").value;
+			const postId = document.getElementById("postId").value;
+			if (postId) {
+				await editPostRequest(postId, title, content, userId);
+			} else {
+				await createPost(title, content, userId);
+			}
+			resetPostForm();
+		});
+
+		document.getElementById("resetUserBtn").addEventListener("click", resetUserForm);
+		document.getElementById("resetPostBtn").addEventListener("click", resetPostForm);
+
+		// Сброс формы пользователя
+		function resetUserForm() {
+			document.getElementById("userId").value = "";
+			document.getElementById("userName").value = "";
+			document.getElementById("userEmail").value = "";
+			document.getElementById("userPassword").value = "";
+		}
+
+		// Сброс формы поста
+		function resetPostForm() {
+			document.getElementById("postId").value = "";
+			document.getElementById("postTitle").value = "";
+			document.getElementById("postContent").value = "";
+			document.getElementById("postUserId").value = "";
+		}
+
+		// Инициализация списка пользователей и постов
+		window.onload = async () => {
+			await getUsers();
+			await getPosts();
+		};
+	</script>
+</body>
+
+</html>
